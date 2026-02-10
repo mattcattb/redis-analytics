@@ -13,18 +13,58 @@
   "bugs": {
     "url": "https://github.com/mattcattb/redis-analytics/issues"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./types": "./src/types.ts",
-    "./bootstrap": "./src/bootstrap.ts",
-    "./metric-registry": "./src/metric-registry.ts",
-    "./time": "./src/time/index.ts",
-    "./redis/bloom": "./src/redis/bloom.service.ts",
-    "./redis/hll": "./src/redis/hll.service.ts",
-    "./redis/timeseries": "./src/redis/timeseries.service.ts",
-    "./store": "./src/store/index.ts",
-    "./query": "./src/query/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./bootstrap": {
+      "types": "./dist/bootstrap.d.ts",
+      "import": "./dist/bootstrap.js"
+    },
+    "./metric-registry": {
+      "types": "./dist/metric-registry.d.ts",
+      "import": "./dist/metric-registry.js"
+    },
+    "./time": {
+      "types": "./dist/time/index.d.ts",
+      "import": "./dist/time/index.js"
+    },
+    "./redis/bloom": {
+      "types": "./dist/redis/bloom.service.d.ts",
+      "import": "./dist/redis/bloom.service.js"
+    },
+    "./redis/hll": {
+      "types": "./dist/redis/hll.service.d.ts",
+      "import": "./dist/redis/hll.service.js"
+    },
+    "./redis/timeseries": {
+      "types": "./dist/redis/timeseries.service.d.ts",
+      "import": "./dist/redis/timeseries.service.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -34,7 +74,8 @@
     "test:integration": "vitest run tests/integration --reporter=verbose",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepack": "npm run clean && npm run build"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -8,7 +8,7 @@
     "outDir": "./dist",
     "composite": true,
     "declaration": true,
-    "emitDeclarationOnly": true,
+    "emitDeclarationOnly": false,
     "noEmit": false,
     "sourceMap": true,
     "incremental": true,
