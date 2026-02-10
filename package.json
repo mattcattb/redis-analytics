@@ -20,6 +20,9 @@
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "redis-analytics-seed": "./dist/seed/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -40,6 +43,10 @@
     "./metric-registry": {
       "types": "./dist/metric-registry.d.ts",
       "import": "./dist/metric-registry.js"
+    },
+    "./seed": {
+      "types": "./dist/seed/index.d.ts",
+      "import": "./dist/seed/index.js"
     },
     "./time": {
       "types": "./dist/time/index.d.ts",
@@ -72,6 +79,7 @@
     "build": "tsc --build",
     "test": "vitest run",
     "test:integration": "vitest run tests/integration --reporter=verbose",
+    "seed": "redis-analytics-seed",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -81,6 +89,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@types/node": "^22.13.4",
     "redis": "^4.7.0",
     "typescript": "^5.8.2",
     "vitepress": "^1.6.4",

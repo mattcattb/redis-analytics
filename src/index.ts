@@ -11,3 +11,4 @@ export * from "./store";
 export * from "./query";
 export * from "./metric-registry";
 export * from "./bootstrap";
+export * from "./seed";

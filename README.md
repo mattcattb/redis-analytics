@@ -14,6 +14,7 @@ Docs: https://mattcattb.github.io/redis-analytics/
 - Query builders: standard TS and dimensional TS
 - Typed metric registry for key/label consistency
 - Bootstrap helper for startup initialization
+- Generic seeding framework and CLI for seed/backfill/status flows
 
 ## Install
 
@@ -111,6 +112,23 @@ const store = txAmount.createStore();
 import { bootstrapAnalytics } from "redis-analytics";
 
 await bootstrapAnalytics([storeA, storeB], { backfillCompactions: true });
+```
+
+### Seeding framework + CLI
+
+```ts
+import { createSeedScenario } from "redis-analytics/seed";
+
+export default createSeedScenario({
+  operations: {
+    tx: async () => 120,
+    user: async () => 300,
+  },
+});
+```
+
+```bash
+redis-analytics-seed seed all --module ./scripts/seed/analytics.scenario.mjs --days 80 --scale 3
 ```
 
 ## Local docs

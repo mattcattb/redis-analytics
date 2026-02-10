@@ -4,6 +4,7 @@
     "module": "esnext",
     "target": "esnext",
     "lib": ["esnext"],
+    "types": ["node"],
     "rootDir": "./src",
     "outDir": "./dist",
     "composite": true,

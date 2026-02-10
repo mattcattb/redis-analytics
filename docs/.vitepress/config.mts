@@ -28,6 +28,7 @@ export default defineConfig({
           { text: "HLL and Bloom", link: "/usage/hll-and-bloom" },
           { text: "Queries", link: "/usage/queries" },
           { text: "Metric Registry", link: "/usage/metric-registry" },
+          { text: "Seeding and CLI", link: "/usage/seeding" },
         ],
       },
       {

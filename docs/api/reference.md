@@ -5,6 +5,7 @@ Core exports:
 - `setRedisAnalyticsClient`, `getRedisAnalyticsClient`
 - `bootstrapAnalytics`
 - `createDimensionalMetric`, `mapMetricConfig`
+- `createSeedScenario` and seed utilities from `redis-analytics/seed`
 - Time helpers from `redis-analytics/time`
 - `TimeSeriesService`, `HLLService`, `BloomService`
 - Stores: `TimeseriesStore`, `DimensionalTimeseriesStore`, `HllStore`, `BloomCounterStore`
@@ -21,6 +22,7 @@ Subpath exports:
 - `redis-analytics/client`
 - `redis-analytics/bootstrap`
 - `redis-analytics/metric-registry`
+- `redis-analytics/seed`
 - `redis-analytics/types`
 - `redis-analytics/time`
 - `redis-analytics/redis/bloom`
