@@ -1,0 +1,26 @@
+# API Reference
+
+Core exports:
+
+- `setRedisAnalyticsClient`, `getRedisAnalyticsClient`
+- Time helpers from `redis-analytics/time`
+- `TimeSeriesService`, `HLLService`, `BloomService`
+- Stores: `TimeseriesStore`, `DimensionalTimeseriesStore`, `HllStore`, `BloomCounterStore`
+- Query builders: `ts`, `tsQuery`, `dimensionalQuery`, `groupedQuery`
+
+Main types:
+
+- `Timeframe`, `Bucket`, `DateRange`
+- `AnalyticBucket`
+- `TSAggregation`, `TSConfig`, `TSFilter`
+
+Subpath exports:
+
+- `redis-analytics/client`
+- `redis-analytics/types`
+- `redis-analytics/time`
+- `redis-analytics/redis/bloom`
+- `redis-analytics/redis/hll`
+- `redis-analytics/redis/timeseries`
+- `redis-analytics/store`
+- `redis-analytics/query`

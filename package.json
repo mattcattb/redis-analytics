@@ -7,7 +7,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_GITHUB_USERNAME/redis-analytics.git"
+    "url": "https://github.com/mattcattb/redis-analytics.git"
+  },
+  "homepage": "https://mattcattb.github.io/redis-analytics/",
+  "bugs": {
+    "url": "https://github.com/mattcattb/redis-analytics/issues"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -23,12 +27,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "devDependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitepress": "^1.6.4"
   }
 }
