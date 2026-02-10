@@ -17,6 +17,8 @@ export default defineConfig({
           { text: "Introduction", link: "/" },
           { text: "Getting Started", link: "/getting-started" },
           { text: "Integration", link: "/integration" },
+          { text: "Bootstrap API", link: "/bootstrap" },
+          { text: "Migration From API", link: "/migration-from-reroll-api" },
         ],
       },
       {
@@ -25,6 +27,7 @@ export default defineConfig({
           { text: "TimeSeries", link: "/usage/timeseries" },
           { text: "HLL and Bloom", link: "/usage/hll-and-bloom" },
           { text: "Queries", link: "/usage/queries" },
+          { text: "Metric Registry", link: "/usage/metric-registry" },
         ],
       },
       {

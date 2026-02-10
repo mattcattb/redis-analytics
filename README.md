@@ -12,6 +12,8 @@ Docs: https://mattcattb.github.io/redis-analytics/
 - Bloom helpers
 - Stores: timeseries, dimensional TS, HLL, bloom-counter
 - Query builders: standard TS and dimensional TS
+- Typed metric registry for key/label consistency
+- Bootstrap helper for startup initialization
 
 ## Install
 
@@ -83,6 +85,32 @@ const byChain = groupedQuery({
   values: ["solana", "ethereum"] as const,
 });
 const grouped = await byChain.timeframe("7d");
+```
+
+### Typed metric registry
+
+```ts
+import { createDimensionalMetric } from "redis-analytics";
+
+const txAmount = createDimensionalMetric({
+  prefix: "ana:tx",
+  suffix: "amount",
+  dimensions: [
+    { name: "coin", values: ["btc", "eth"] as const },
+    { name: "category", values: ["deposit", "withdrawal"] as const },
+  ] as const,
+  config: { duplicatePolicy: "SUM" },
+});
+
+const store = txAmount.createStore();
+```
+
+### Bootstrap API
+
+```ts
+import { bootstrapAnalytics } from "redis-analytics";
+
+await bootstrapAnalytics([storeA, storeB], { backfillCompactions: true });
 ```
 
 ## Local docs

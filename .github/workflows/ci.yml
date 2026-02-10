@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  integration-redis-stack:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Redis integration tests
+        env:
+          REDIS_INTEGRATION: "1"
+          REDIS_URL: redis://127.0.0.1:6379
+        run: npm run test:integration

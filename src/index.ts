@@ -9,3 +9,5 @@ export * from "./redis/timeseries.service";
 
 export * from "./store";
 export * from "./query";
+export * from "./metric-registry";
+export * from "./bootstrap";

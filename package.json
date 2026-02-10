@@ -17,6 +17,8 @@
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
     "./types": "./src/types.ts",
+    "./bootstrap": "./src/bootstrap.ts",
+    "./metric-registry": "./src/metric-registry.ts",
     "./time": "./src/time/index.ts",
     "./redis/bloom": "./src/redis/bloom.service.ts",
     "./redis/hll": "./src/redis/hll.service.ts",
@@ -28,6 +30,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
     "build": "tsc --build",
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration --reporter=verbose",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -36,7 +40,9 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "redis": "^4.7.0",
     "typescript": "^5.8.2",
-    "vitepress": "^1.6.4"
+    "vitepress": "^1.6.4",
+    "vitest": "^2.1.8"
   }
 }
