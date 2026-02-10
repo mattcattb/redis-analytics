@@ -44,6 +44,14 @@
       "types": "./dist/metric-registry.d.ts",
       "import": "./dist/metric-registry.js"
     },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
+    },
+    "./client-contract": {
+      "types": "./dist/client-contract.d.ts",
+      "import": "./dist/client-contract.js"
+    },
     "./seed": {
       "types": "./dist/seed/index.d.ts",
       "import": "./dist/seed/index.js"

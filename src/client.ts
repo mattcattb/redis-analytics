@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 export type RedisAnalyticsClient = {
   bf: {
     reserve: (key: string, errorRate: number, capacity: number) => Promise<unknown>;
@@ -63,17 +65,81 @@ export type RedisAnalyticsClient = {
   };
 };
 
+export type RedisAnalyticsCapabilities = {
+  supportsPipelining: boolean;
+  supportsExecAsPipelineTyped: boolean;
+  supportsNativeGroupBy: boolean;
+};
+
+export type RedisAnalyticsContext = {
+  client: RedisAnalyticsClient;
+  capabilities: RedisAnalyticsCapabilities;
+};
+
+const DEFAULT_CAPABILITIES: RedisAnalyticsCapabilities = {
+  supportsPipelining: true,
+  supportsExecAsPipelineTyped: false,
+  supportsNativeGroupBy: true,
+};
+
+function inferCapabilities(client: RedisAnalyticsClient): RedisAnalyticsCapabilities {
+  const supportsExecAsPipelineTyped =
+    typeof client.multi().execAsPipelineTyped === "function";
+
+  return {
+    ...DEFAULT_CAPABILITIES,
+    supportsExecAsPipelineTyped,
+  };
+}
+
 let redisAnalyticsClient: RedisAnalyticsClient | null = null;
+let redisAnalyticsCapabilities: RedisAnalyticsCapabilities = DEFAULT_CAPABILITIES;
+const contextStorage = new AsyncLocalStorage<RedisAnalyticsContext>();
 
 export function setRedisAnalyticsClient(client: RedisAnalyticsClient) {
   redisAnalyticsClient = client;
+  redisAnalyticsCapabilities = inferCapabilities(client);
+}
+
+export function setRedisAnalyticsCapabilities(
+  capabilities: Partial<RedisAnalyticsCapabilities>
+) {
+  redisAnalyticsCapabilities = {
+    ...redisAnalyticsCapabilities,
+    ...capabilities,
+  };
+}
+
+export function getRedisAnalyticsContext(): RedisAnalyticsContext | null {
+  const scoped = contextStorage.getStore();
+  if (scoped) return scoped;
+  if (!redisAnalyticsClient) return null;
+
+  return {
+    client: redisAnalyticsClient,
+    capabilities: redisAnalyticsCapabilities,
+  };
+}
+
+export function withRedisAnalyticsContext<T>(
+  context: RedisAnalyticsContext,
+  run: () => T
+): T {
+  return contextStorage.run(context, run);
 }
 
 export function getRedisAnalyticsClient(): RedisAnalyticsClient {
-  if (!redisAnalyticsClient) {
+  const context = getRedisAnalyticsContext();
+  if (!context) {
     throw new Error(
       "redis analytics client is not configured. Call setRedisAnalyticsClient() first."
     );
   }
-  return redisAnalyticsClient;
+  return context.client;
+}
+
+export function getRedisAnalyticsCapabilities(): RedisAnalyticsCapabilities {
+  const context = getRedisAnalyticsContext();
+  if (context) return context.capabilities;
+  return redisAnalyticsCapabilities;
 }

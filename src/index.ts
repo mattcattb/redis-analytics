@@ -12,3 +12,5 @@ export * from "./query";
 export * from "./metric-registry";
 export * from "./bootstrap";
 export * from "./seed";
+export * from "./client-contract";
+export * from "./app";
