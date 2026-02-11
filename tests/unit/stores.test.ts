@@ -290,6 +290,39 @@ describe("DimensionalTSStore", () => {
     expect(client.ts.create).toHaveBeenCalledTimes(2);
   });
 
+  it("does not alter existing dimensional keys by default", async () => {
+    (client.ts.create as any).mockRejectedValueOnce(new Error("key already exists"));
+
+    const store = new DimensionalTSStore(
+      "base:key",
+      [{ name: "coin", knownValues: ["btc"] }],
+      { duplicatePolicy: "SUM" }
+    );
+
+    await store.init();
+
+    expect(client.ts.alter).not.toHaveBeenCalled();
+  });
+
+  it("can reconcile existing dimensional keys when enabled", async () => {
+    (client.ts.create as any).mockRejectedValueOnce(new Error("key already exists"));
+
+    const store = new DimensionalTSStore(
+      "base:key",
+      [{ name: "coin", knownValues: ["btc"] }],
+      { duplicatePolicy: "SUM", reconcileExisting: true }
+    );
+
+    await store.init();
+
+    expect(client.ts.alter).toHaveBeenCalledWith(
+      "base:key:coin=btc",
+      expect.objectContaining({
+        DUPLICATE_POLICY: "SUM",
+      })
+    );
+  });
+
   it("init() is no-op without known values", async () => {
     const store = new DimensionalTSStore("base:key", [{ name: "coin" }]);
     await store.init();

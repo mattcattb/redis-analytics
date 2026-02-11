@@ -9,6 +9,35 @@ export type SeedOperation<
   run: (context: TContext) => Promise<number>;
 };
 
+export type SeedCommand = "seed" | "backfill" | "status";
+
+export type RunSeedScenarioOptions<TTarget extends SeedTarget> = {
+  command: SeedCommand;
+  target: TTarget;
+  days: number;
+  scale: number;
+};
+
+export type RunSeedScenarioResult<
+  TContext,
+  TTarget extends SeedTarget,
+  TStatus,
+> =
+  | {
+      command: "seed";
+      target: TTarget;
+      context: TContext;
+      results: SeedResult<TTarget>[];
+    }
+  | {
+      command: "backfill";
+      ok: true;
+    }
+  | {
+      command: "status";
+      status: TStatus;
+    };
+
 export function createSeedScenario<
   TContext extends SeedContext,
   TTarget extends SeedTarget,
@@ -84,4 +113,32 @@ export function createSeedScenario<
       return {};
     },
   };
+}
+
+export async function runSeedScenario<
+  TContext,
+  TTarget extends SeedTarget,
+  TStatus,
+>(
+  scenario: SeedScenario<TContext, TTarget, TStatus>,
+  options: RunSeedScenarioOptions<TTarget>
+): Promise<RunSeedScenarioResult<TContext, TTarget, TStatus>> {
+  if (options.command === "seed") {
+    const context = scenario.createContext(options.days, options.scale);
+    const results = await scenario.seed(options.target, context);
+    return {
+      command: "seed",
+      target: options.target,
+      context,
+      results,
+    };
+  }
+
+  if (options.command === "backfill") {
+    await scenario.backfill();
+    return { command: "backfill", ok: true };
+  }
+
+  const status = await scenario.status();
+  return { command: "status", status };
 }

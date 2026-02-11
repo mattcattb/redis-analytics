@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 import type { SeedModule, SeedScenario } from "./types";
+import { runSeedScenario } from "./scenario";
 
 type CliCommand = "seed" | "backfill" | "status";
 
@@ -81,22 +82,30 @@ export async function runSeedCli(argv: string[]): Promise<void> {
   const moduleUrl = pathToFileURL(absoluteModulePath).toString();
   const loaded = (await import(moduleUrl)) as SeedModule<any, any, any>;
   const scenario = resolveScenario(loaded);
+  const result = await runSeedScenario(scenario, {
+    command: options.command,
+    target: options.target,
+    days: options.days,
+    scale: options.scale,
+  });
 
-  if (options.command === "seed") {
-    const context = scenario.createContext(options.days, options.scale);
-    const results = await scenario.seed(options.target, context);
-    console.log(JSON.stringify({ command: "seed", target: options.target, results }, null, 2));
+  if (result.command === "seed") {
+    console.log(
+      JSON.stringify(
+        { command: result.command, target: result.target, results: result.results },
+        null,
+        2
+      )
+    );
     return;
   }
 
-  if (options.command === "backfill") {
-    await scenario.backfill();
-    console.log(JSON.stringify({ command: "backfill", ok: true }, null, 2));
+  if (result.command === "backfill") {
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 
-  const status = await scenario.status();
-  console.log(JSON.stringify({ command: "status", status }, null, 2));
+  console.log(JSON.stringify({ command: result.command, status: result.status }, null, 2));
 }
 
 const isDirectRun = process.argv[1]

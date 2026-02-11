@@ -56,6 +56,10 @@
       "types": "./dist/compare.d.ts",
       "import": "./dist/compare.js"
     },
+    "./builder": {
+      "types": "./dist/builder.d.ts",
+      "import": "./dist/builder.js"
+    },
     "./seed": {
       "types": "./dist/seed/index.d.ts",
       "import": "./dist/seed/index.js"

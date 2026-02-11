@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createSeedScenario } from "../../src/seed/scenario";
+import { createSeedScenario, runSeedScenario } from "../../src/seed/scenario";
 
 describe("createSeedScenario", () => {
   it("runs all target operations", async () => {
@@ -44,5 +44,58 @@ describe("createSeedScenario", () => {
     expect(seedUser).toHaveBeenCalledTimes(0);
     expect(seedTx).toHaveBeenCalledTimes(1);
     expect(results).toEqual([{ target: "tx", count: 5 }]);
+  });
+});
+
+describe("runSeedScenario", () => {
+  it("executes seed command using scenario context builder", async () => {
+    const scenario = createSeedScenario({
+      operations: {
+        tx: async () => 3,
+      },
+    });
+
+    const result = await runSeedScenario(scenario, {
+      command: "seed",
+      target: "tx",
+      days: 14,
+      scale: 2,
+    });
+
+    expect(result.command).toBe("seed");
+    if (result.command !== "seed") return;
+
+    expect(result.context.scale).toBe(2);
+    expect(result.results).toEqual([{ target: "tx", count: 3 }]);
+  });
+
+  it("executes backfill and status commands", async () => {
+    const backfill = vi.fn(async () => undefined);
+    const status = vi.fn(async () => ({ ok: true }));
+    const scenario = createSeedScenario({
+      operations: {
+        tx: async () => 1,
+      },
+      backfill,
+      status,
+    });
+
+    const backfillResult = await runSeedScenario(scenario, {
+      command: "backfill",
+      target: "all",
+      days: 1,
+      scale: 1,
+    });
+    expect(backfillResult).toEqual({ command: "backfill", ok: true });
+    expect(backfill).toHaveBeenCalledTimes(1);
+
+    const statusResult = await runSeedScenario(scenario, {
+      command: "status",
+      target: "all",
+      days: 1,
+      scale: 1,
+    });
+    expect(statusResult).toEqual({ command: "status", status: { ok: true } });
+    expect(status).toHaveBeenCalledTimes(1);
   });
 });
