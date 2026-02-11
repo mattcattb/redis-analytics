@@ -52,6 +52,10 @@
       "types": "./dist/client-contract.d.ts",
       "import": "./dist/client-contract.js"
     },
+    "./compare": {
+      "types": "./dist/compare.d.ts",
+      "import": "./dist/compare.js"
+    },
     "./seed": {
       "types": "./dist/seed/index.d.ts",
       "import": "./dist/seed/index.js"
@@ -79,6 +83,10 @@
     "./query": {
       "types": "./dist/query/index.d.ts",
       "import": "./dist/query/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
     }
   },
   "scripts": {

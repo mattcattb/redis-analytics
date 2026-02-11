@@ -51,7 +51,7 @@ export class DimensionalTSStore<TDim extends string> {
     return combinations;
   }
 
-  buildKey(dimensions: Record<string, string>): string {
+  buildKey(dimensions: Record<TDim, string>): string {
     const parts = this.dimNames.map((name) => {
       const value = dimensions[name];
       if (!value) throw new Error(`Missing dimension: ${name}`);

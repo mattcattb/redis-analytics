@@ -14,3 +14,5 @@ export * from "./bootstrap";
 export * from "./seed";
 export * from "./client-contract";
 export * from "./app";
+export * from "./compare";
+export * from "./schema";

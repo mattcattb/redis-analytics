@@ -19,7 +19,7 @@ import { tsQuery } from "./query/ts-query.standard";
 import { bootstrapAnalytics, type BootstrapOptions, type BootstrapTarget } from "./bootstrap";
 import { createDimensionalMetric, mapMetricConfig } from "./metric-registry";
 
-type AnyFn = (...args: any[]) => any;
+type AnyFn = (...args: unknown[]) => unknown;
 
 function bindObjectMethods<T extends Record<string, unknown>>(
   target: T,
@@ -39,28 +39,40 @@ function bindObjectMethods<T extends Record<string, unknown>>(
 
 function bindInstanceMethods<T extends object>(instance: T, context: RedisAnalyticsContext): T {
   const proto = Object.getPrototypeOf(instance) as Record<string, unknown>;
+  const instanceRecord = instance as Record<string, unknown>;
   const names = Object.getOwnPropertyNames(proto).filter(
-    (name) => name !== "constructor" && typeof (instance as any)[name] === "function"
+    (name) => name !== "constructor" && typeof instanceRecord[name] === "function"
   );
 
   for (const name of names) {
-    const original = (instance as any)[name] as AnyFn;
-    (instance as any)[name] = (...args: unknown[]) =>
+    const original = instanceRecord[name] as AnyFn;
+    instanceRecord[name] = (...args: unknown[]) =>
       withRedisAnalyticsContext(context, () => original.apply(instance, args));
   }
   return instance;
 }
 
-export type CreateAnalyticsOptions = {
-  client: RedisAnalyticsClient;
+type CreateAnalyticsOptionsWithValidation = {
+  client: unknown;
   capabilities?: Partial<RedisAnalyticsCapabilities>;
-  validateClientContract?: boolean;
+  validateClientContract?: true;
 };
 
+type CreateAnalyticsOptionsWithoutValidation = {
+  client: RedisAnalyticsClient;
+  capabilities?: Partial<RedisAnalyticsCapabilities>;
+  validateClientContract: false;
+};
+
+export type CreateAnalyticsOptions =
+  | CreateAnalyticsOptionsWithValidation
+  | CreateAnalyticsOptionsWithoutValidation;
+
 export function createAnalytics(options: CreateAnalyticsOptions) {
-  const client = options.validateClientContract === false
-    ? options.client
-    : assertRedisAnalyticsClientContract(options.client);
+  const client =
+    options.validateClientContract === false
+      ? options.client
+      : assertRedisAnalyticsClientContract(options.client);
   const inferredTypedPipeline = typeof client.multi().execAsPipelineTyped === "function";
 
   const context: RedisAnalyticsContext = {
@@ -76,7 +88,7 @@ export function createAnalytics(options: CreateAnalyticsOptions) {
   const run = <T>(fn: () => T): T => withRedisAnalyticsContext(context, fn);
 
   const createMetric = (...args: Parameters<typeof createDimensionalMetric>) => {
-    const metric = createDimensionalMetric(...(args as [any]));
+    const metric = createDimensionalMetric(...args);
     return {
       ...metric,
       createStore: () => bindInstanceMethods(metric.createStore(), context),
@@ -104,11 +116,11 @@ export function createAnalytics(options: CreateAnalyticsOptions) {
     },
     query: {
       ts: (...args: Parameters<typeof tsQuery>) =>
-        bindObjectMethods(tsQuery(...(args as [any])), context),
+        bindObjectMethods(tsQuery(...args), context),
       dimensional: (...args: Parameters<typeof dimensionalQuery>) =>
-        bindObjectMethods(dimensionalQuery(...(args as [any])), context),
+        bindObjectMethods(dimensionalQuery(...args), context),
       grouped: (...args: Parameters<typeof groupedQuery>) =>
-        bindObjectMethods(groupedQuery(...(args as [any])), context),
+        bindObjectMethods(groupedQuery(...args), context),
     },
     metrics: {
       createDimensionalMetric: createMetric,

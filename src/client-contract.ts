@@ -1,5 +1,21 @@
 import type { RedisAnalyticsClient } from "./client";
 
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function getPath(record: UnknownRecord, key: string): unknown {
+  return record[key];
+}
+
+function assertRecord(value: unknown, path: string): asserts value is UnknownRecord {
+  if (!isRecord(value)) {
+    throw new Error(`Redis analytics client contract violation at "${path}"`);
+  }
+}
+
 function assertFunction(
   value: unknown,
   path: string
@@ -10,33 +26,41 @@ function assertFunction(
 }
 
 export function assertRedisAnalyticsClientContract(
-  client: RedisAnalyticsClient
+  client: unknown
 ): RedisAnalyticsClient {
-  assertFunction(client.bf?.reserve, "bf.reserve");
-  assertFunction(client.bf?.mAdd, "bf.mAdd");
-  assertFunction(client.bf?.mExists, "bf.mExists");
+  assertRecord(client, "client");
 
-  assertFunction(client.ts?.create, "ts.create");
-  assertFunction(client.ts?.alter, "ts.alter");
-  assertFunction(client.ts?.createRule, "ts.createRule");
-  assertFunction(client.ts?.mAdd, "ts.mAdd");
-  assertFunction(client.ts?.range, "ts.range");
-  assertFunction(client.ts?.mRangeWithLabels, "ts.mRangeWithLabels");
+  const bf = getPath(client, "bf");
+  assertRecord(bf, "bf");
+  assertFunction(getPath(bf, "reserve"), "bf.reserve");
+  assertFunction(getPath(bf, "mAdd"), "bf.mAdd");
+  assertFunction(getPath(bf, "mExists"), "bf.mExists");
+
+  const ts = getPath(client, "ts");
+  assertRecord(ts, "ts");
+  assertFunction(getPath(ts, "create"), "ts.create");
+  assertFunction(getPath(ts, "alter"), "ts.alter");
+  assertFunction(getPath(ts, "createRule"), "ts.createRule");
+  assertFunction(getPath(ts, "mAdd"), "ts.mAdd");
+  assertFunction(getPath(ts, "range"), "ts.range");
+  assertFunction(getPath(ts, "mRangeWithLabels"), "ts.mRangeWithLabels");
   assertFunction(
-    client.ts?.mRangeWithLabelsGroupBy,
+    getPath(ts, "mRangeWithLabelsGroupBy"),
     "ts.mRangeWithLabelsGroupBy"
   );
 
-  assertFunction(client.pfAdd, "pfAdd");
-  assertFunction(client.pfCount, "pfCount");
-  assertFunction(client.pfMerge, "pfMerge");
-  assertFunction(client.expire, "expire");
-  assertFunction(client.multi, "multi");
+  assertFunction(getPath(client, "pfAdd"), "pfAdd");
+  assertFunction(getPath(client, "pfCount"), "pfCount");
+  assertFunction(getPath(client, "pfMerge"), "pfMerge");
+  assertFunction(getPath(client, "expire"), "expire");
+  assertFunction(getPath(client, "multi"), "multi");
 
-  const pipeline = client.multi();
-  assertFunction(pipeline.pfAdd, "multi().pfAdd");
-  assertFunction(pipeline.pfCount, "multi().pfCount");
-  assertFunction(pipeline.execAsPipeline, "multi().execAsPipeline");
+  const multi = getPath(client, "multi") as () => unknown;
+  const pipeline = multi();
+  assertRecord(pipeline, "multi()");
+  assertFunction(getPath(pipeline, "pfAdd"), "multi().pfAdd");
+  assertFunction(getPath(pipeline, "pfCount"), "multi().pfCount");
+  assertFunction(getPath(pipeline, "execAsPipeline"), "multi().execAsPipeline");
 
-  return client;
+  return client as RedisAnalyticsClient;
 }

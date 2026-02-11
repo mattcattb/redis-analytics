@@ -4,18 +4,6 @@ Reusable Redis analytics primitives for TS/HLL/Bloom backed metrics.
 
 Docs: https://mattcattb.github.io/redis-analytics/
 
-## Includes
-
-- Redis client adapter injection
-- TimeSeries helpers
-- HyperLogLog helpers
-- Bloom helpers
-- Stores: timeseries, dimensional TS, HLL, bloom-counter
-- Query builders: standard TS and dimensional TS
-- Typed metric registry for key/label consistency
-- Bootstrap helper for startup initialization
-- Generic seeding framework and CLI for seed/backfill/status flows
-
 ## Install
 
 ```bash
@@ -30,7 +18,61 @@ import { setRedisAnalyticsClient } from "redis-analytics";
 setRedisAnalyticsClient(client);
 ```
 
-## Usage examples
+## Quick start — `defineMetrics` (Recommended)
+
+The `defineMetrics` API lets you declare all metrics for a domain in a single definition and get back a fully-typed, ready-to-use analytics object.
+
+```ts
+import { defineMetrics } from "redis-analytics/schema";
+
+const tippingMetrics = defineMetrics({
+  prefix: "analytics:tipping",
+  metrics: {
+    tips: {
+      type: "timeseries",
+      config: { duplicatePolicy: "SUM" },
+      aggregations: { tips_usd_total: "SUM", tips_total: "COUNT", tips_usd_avg: "AVG" },
+    },
+    fees: {
+      type: "timeseries",
+      config: { duplicatePolicy: "SUM" },
+      aggregations: { fees_usd_total: "SUM", fees_usd_avg: "AVG" },
+    },
+    unique_tippers: { type: "hll" },
+    unique_tippees: { type: "hll" },
+  },
+});
+
+// Initialize all stores
+await tippingMetrics.init();
+
+// Query stats — pass a timeframe string or a { start, end } range
+const stats = await tippingMetrics.getStats("24h");
+// → { tips_usd_total: number, tips_total: number, tips_usd_avg: number,
+//    fees_usd_total: number, fees_usd_avg: number,
+//    unique_tippers: number, unique_tippees: number }
+
+// Or query by date range
+const rangeStats = await tippingMetrics.getStats({ start, end });
+
+// Query series — same keys, AnalyticBucket[] values
+const series = await tippingMetrics.getSeries("1w", "d");
+
+// Access individual stores for recording
+await tippingMetrics.stores.tips.record([
+  { timestamp: new Date(), value: 25.50 },
+]);
+```
+
+**Supported metric types:**
+
+| Type | Description | Stat key |
+|------|-------------|----------|
+| `timeseries` | Quantitative metrics (SUM, AVG, COUNT, etc.) | Each key in `aggregations` |
+| `hll` | Approximate unique counting (HyperLogLog) | The metric name |
+| `bloom-counter` | First-seen detection + counting (Bloom + TS) | The metric name |
+
+## Advanced — Low-level APIs
 
 ### TimeSeries store
 
@@ -60,12 +102,12 @@ import { HllStore, BloomCounterStore } from "redis-analytics";
 
 const activeUsers = new HllStore("analytics:users:active");
 await activeUsers.record([{ id: "u1", timestamp: new Date() }]);
-const uniques7d = await activeUsers.get("7d");
+const uniques7d = await activeUsers.get("1w");
 
 const firstSeenUsers = new BloomCounterStore("analytics:users:first-seen");
 await firstSeenUsers.init();
 await firstSeenUsers.record([{ id: "u1", timestamp: new Date() }]);
-const newUsers7d = await firstSeenUsers.get("7d");
+const newUsers7d = await firstSeenUsers.get("1w");
 ```
 
 ### Query builders
@@ -77,7 +119,7 @@ const totals = tsQuery({
   bets: ts("analytics:bets:count", "SUM"),
   volume: ts("analytics:bets:volume", "SUM"),
 });
-const metrics = await totals.timeframe("7d");
+const metrics = await totals.timeframe("1w");
 
 const byChain = groupedQuery({
   filter: { metric: "bets", env: "prod" },
@@ -85,7 +127,7 @@ const byChain = groupedQuery({
   groupBy: "chain",
   values: ["solana", "ethereum"] as const,
 });
-const grouped = await byChain.timeframe("7d");
+const grouped = await byChain.timeframe("1w");
 ```
 
 ### Typed metric registry
