@@ -53,6 +53,32 @@ describe("TimeseriesStore", () => {
     );
   });
 
+  it("does not alter existing key by default", async () => {
+    (client.ts.create as any).mockRejectedValueOnce(new Error("key already exists"));
+
+    const store = new TimeseriesStore("test:key", { duplicatePolicy: "SUM" });
+    await store.init();
+
+    expect(client.ts.alter).not.toHaveBeenCalled();
+  });
+
+  it("can reconcile existing key when explicitly enabled", async () => {
+    (client.ts.create as any).mockRejectedValueOnce(new Error("key already exists"));
+
+    const store = new TimeseriesStore("test:key", {
+      duplicatePolicy: "SUM",
+      reconcileExisting: true,
+    });
+    await store.init();
+
+    expect(client.ts.alter).toHaveBeenCalledWith(
+      "test:key",
+      expect.objectContaining({
+        DUPLICATE_POLICY: "SUM",
+      })
+    );
+  });
+
   it("init() initializes compactions", async () => {
     const store = new TimeseriesStore("test:key", { duplicatePolicy: "SUM" });
     store.compact("SUM", "h");

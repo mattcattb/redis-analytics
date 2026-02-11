@@ -34,6 +34,11 @@ export type TSConfig = {
   labels?: Record<string, string>;
   retentionHrs?: number;
   duplicatePolicy?: TSDuplicatePolicy;
+  /**
+   * When false (default), existing series keys are left untouched.
+   * Set true only when you explicitly want to reconcile key settings on startup.
+   */
+  reconcileExisting?: boolean;
 };
 
 const createFilterArray = (filter: TSFilter) => {
@@ -49,7 +54,12 @@ export const pointToBucket = (
 
 export const TimeSeriesService = {
   async ensureKey(key: string, config: TSConfig = {}) {
-    const { duplicatePolicy = "LAST", labels = {}, retentionHrs = 0 } = config;
+    const {
+      duplicatePolicy = "LAST",
+      labels = {},
+      retentionHrs = 0,
+      reconcileExisting = false,
+    } = config;
     const RETENTION = retentionHrs * 60 * 60 * 1000;
 
     try {
@@ -60,6 +70,8 @@ export const TimeSeriesService = {
       });
     } catch (e: any) {
       if ((e?.message ?? "").includes("key already exists")) {
+        if (!reconcileExisting) return;
+
         await getRedisAnalyticsClient().ts.alter(key, {
           RETENTION,
           DUPLICATE_POLICY: duplicatePolicy,

@@ -7,8 +7,10 @@ import type {
   Timeframe,
 } from "./types";
 import { TimeseriesStore } from "./store/store.timeseries";
+import { DimensionalTSStore, type DimensionDef } from "./store/store.dimentional-ts";
 import { HllStore } from "./store/store.hll";
 import { BloomCounterStore } from "./store/store.bloom-counter";
+import { dimensionalQuery, groupedQuery } from "./query/ts-query.dim";
 import { ts, tsQuery } from "./query/ts-query.standard";
 
 // ── Metric definition types ──
@@ -205,6 +207,245 @@ export function defineMetrics<const TDef extends MetricsDef>(config: {
   return {
     stores: storesRecord as InferStores<TDef>,
     init: () => Promise.all(internals.map((s) => s.store.init())).then(() => undefined),
+    getStats,
+    getSeries,
+  };
+}
+
+// ── Dimensional schema API ──
+
+type DimensionValuesMap = Record<string, readonly string[]>;
+
+type DimensionalStoreDef<TDims extends DimensionValuesMap = DimensionValuesMap> = {
+  dimensions: TDims;
+  config?: TSConfig;
+};
+
+type DimensionalStoresDef = Record<string, DimensionalStoreDef<DimensionValuesMap>>;
+
+export type DimensionalFilter<TDims extends DimensionValuesMap> = Partial<{
+  [K in keyof TDims & string]:
+    | TDims[K][number]
+    | readonly TDims[K][number][];
+}>;
+
+type QueryDefForStore<
+  TStores extends DimensionalStoresDef,
+  TStoreName extends keyof TStores & string,
+> = {
+  store: TStoreName;
+  agg: TSAggregation;
+  reducer?: TSAggregation;
+  filter?: DimensionalFilter<TStores[TStoreName]["dimensions"]>;
+  breakdown?: {
+    by: keyof TStores[TStoreName]["dimensions"] & string;
+  };
+};
+
+type DimensionalQueryDef<TStores extends DimensionalStoresDef> = {
+  [TStoreName in keyof TStores & string]: QueryDefForStore<TStores, TStoreName>;
+}[keyof TStores & string];
+
+type DimensionalQueriesDef<TStores extends DimensionalStoresDef> = Record<
+  string,
+  DimensionalQueryDef<TStores>
+>;
+
+type InferDimensionalStores<TStores extends DimensionalStoresDef> = {
+  [K in keyof TStores]: DimensionalTSStore<keyof TStores[K]["dimensions"] & string>;
+};
+
+type InferDimensionalStatForQuery<
+  TStores extends DimensionalStoresDef,
+  TQuery extends DimensionalQueryDef<TStores>,
+> = TQuery extends { store: infer TStoreName extends keyof TStores & string }
+  ? TQuery extends {
+      breakdown: { by: infer TBy extends keyof TStores[TStoreName]["dimensions"] & string };
+    }
+    ? {
+        overall: number;
+        breakdown: Record<TStores[TStoreName]["dimensions"][TBy][number], number>;
+      }
+    : number
+  : never;
+
+type InferDimensionalSeriesForQuery<
+  TStores extends DimensionalStoresDef,
+  TQuery extends DimensionalQueryDef<TStores>,
+> = TQuery extends { store: infer TStoreName extends keyof TStores & string }
+  ? TQuery extends {
+      breakdown: { by: infer TBy extends keyof TStores[TStoreName]["dimensions"] & string };
+    }
+    ? {
+        overall: AnalyticBucket[];
+        breakdown: Record<TStores[TStoreName]["dimensions"][TBy][number], AnalyticBucket[]>;
+      }
+    : AnalyticBucket[]
+  : never;
+
+export type InferDimensionalStats<
+  TStores extends DimensionalStoresDef,
+  TQueries extends DimensionalQueriesDef<TStores>,
+> = {
+  [K in keyof TQueries]: InferDimensionalStatForQuery<TStores, TQueries[K]>;
+};
+
+export type InferDimensionalSeries<
+  TStores extends DimensionalStoresDef,
+  TQueries extends DimensionalQueriesDef<TStores>,
+> = {
+  [K in keyof TQueries]: InferDimensionalSeriesForQuery<TStores, TQueries[K]>;
+};
+
+export type DefinedDimensionalMetrics<
+  TStores extends DimensionalStoresDef,
+  TQueries extends DimensionalQueriesDef<TStores>,
+> = {
+  stores: InferDimensionalStores<TStores>;
+  init(): Promise<void>;
+  getStats(scope: MetricScope): Promise<InferDimensionalStats<TStores, TQueries>>;
+  getSeries(
+    scope: MetricScope,
+    bucket: Bucket
+  ): Promise<InferDimensionalSeries<TStores, TQueries>>;
+};
+
+type RuntimeDimensionalQuery = {
+  key: string;
+  overall: ReturnType<typeof dimensionalQuery>;
+  breakdown?: ReturnType<typeof groupedQuery>;
+};
+
+function toDimensionDefs<TDims extends DimensionValuesMap>(
+  dimensions: TDims
+): DimensionDef<keyof TDims & string>[] {
+  return Object.entries(dimensions).map(([name, values]) => ({
+    name: name as keyof TDims & string,
+    knownValues: values,
+  }));
+}
+
+export function defineDimensionalMetrics<
+  const TStores extends DimensionalStoresDef,
+  const TQueries extends DimensionalQueriesDef<TStores>,
+>(config: {
+  prefix: string;
+  stores: TStores;
+  queries: TQueries;
+}): DefinedDimensionalMetrics<TStores, TQueries> {
+  const storesRecord = {} as InferDimensionalStores<TStores>;
+
+  for (const [storeName, storeDef] of Object.entries(config.stores)) {
+    const key = `${config.prefix}:${storeName}`;
+    const dimDefs = toDimensionDefs(storeDef.dimensions);
+
+    (
+      storesRecord as Record<
+        string,
+        DimensionalTSStore<string>
+      >
+    )[storeName] = new DimensionalTSStore(key, dimDefs, storeDef.config ?? {});
+  }
+
+  const queryPlans = Object.entries(config.queries).map(([queryKey, queryDef]) => {
+    const store = (
+      storesRecord as Record<
+        string,
+        DimensionalTSStore<string>
+      >
+    )[queryDef.store];
+    const filter = store.filter(queryDef.filter as Record<string, string | string[]>);
+
+    const overall = dimensionalQuery({
+      filter,
+      agg: queryDef.agg,
+      reducer: queryDef.reducer,
+    });
+
+    let breakdown: ReturnType<typeof groupedQuery> | undefined;
+    if (queryDef.breakdown) {
+      const by = queryDef.breakdown.by as string;
+      const storeDefinition = config.stores[
+        queryDef.store
+      ] as DimensionalStoreDef<DimensionValuesMap>;
+      const values = storeDefinition.dimensions[by];
+
+      if (!values) {
+        throw new Error(
+          `Unknown breakdown dimension "${by}" for query "${queryKey}"`
+        );
+      }
+
+      breakdown = groupedQuery({
+        filter,
+        agg: queryDef.agg,
+        reducer: queryDef.reducer,
+        groupBy: by,
+        values,
+      });
+    }
+
+    return {
+      key: queryKey,
+      overall,
+      breakdown,
+    } satisfies RuntimeDimensionalQuery;
+  });
+
+  async function getStats(
+    scope: MetricScope
+  ): Promise<InferDimensionalStats<TStores, TQueries>> {
+    const tf = isTimeframe(scope);
+    const results = await Promise.all(
+      queryPlans.map(async (plan) => {
+        if (plan.breakdown) {
+          const [overall, breakdown] = await Promise.all([
+            tf ? plan.overall.timeframe(scope) : plan.overall.range(scope),
+            tf ? plan.breakdown.timeframe(scope) : plan.breakdown.range(scope),
+          ]);
+          return [plan.key, { overall, breakdown }] as const;
+        }
+
+        const value = tf ? plan.overall.timeframe(scope) : plan.overall.range(scope);
+        return [plan.key, await value] as const;
+      })
+    );
+
+    return Object.fromEntries(results) as InferDimensionalStats<TStores, TQueries>;
+  }
+
+  async function getSeries(
+    scope: MetricScope,
+    bucket: Bucket
+  ): Promise<InferDimensionalSeries<TStores, TQueries>> {
+    const tf = isTimeframe(scope);
+    const results = await Promise.all(
+      queryPlans.map(async (plan) => {
+        if (plan.breakdown) {
+          const [overall, breakdown] = await Promise.all([
+            tf
+              ? plan.overall.bucketsByTimeframe(scope, bucket)
+              : plan.overall.buckets(scope, bucket),
+            tf
+              ? plan.breakdown.bucketsByTimeframe(scope, bucket)
+              : plan.breakdown.buckets(scope, bucket),
+          ]);
+          return [plan.key, { overall, breakdown }] as const;
+        }
+
+        const value = tf
+          ? plan.overall.bucketsByTimeframe(scope, bucket)
+          : plan.overall.buckets(scope, bucket);
+        return [plan.key, await value] as const;
+      })
+    );
+
+    return Object.fromEntries(results) as InferDimensionalSeries<TStores, TQueries>;
+  }
+
+  return {
+    stores: storesRecord,
+    init: () => Promise.all(Object.values(storesRecord).map((store) => store.init())).then(() => undefined),
     getStats,
     getSeries,
   };

@@ -1,7 +1,15 @@
 import { describe, it, expectTypeOf } from "vitest";
-import { defineMetrics, type InferStats, type InferSeries } from "../../src/schema";
+import {
+  defineDimensionalMetrics,
+  defineMetrics,
+  type InferDimensionalSeries,
+  type InferDimensionalStats,
+  type InferSeries,
+  type InferStats,
+} from "../../src/schema";
 import type { AnalyticBucket } from "../../src/types";
 import type { TimeseriesStore } from "../../src/store/store.timeseries";
+import type { DimensionalTSStore } from "../../src/store/store.dimentional-ts";
 import type { HllStore } from "../../src/store/store.hll";
 import type { BloomCounterStore } from "../../src/store/store.bloom-counter";
 
@@ -96,5 +104,90 @@ describe("defineMetrics type inference", () => {
     type Stats = InferStats<HllOnly>;
     expectTypeOf<Stats>().toHaveProperty("unique_users");
     expectTypeOf<Stats>().toHaveProperty("unique_sessions");
+  });
+
+  it("defineDimensionalMetrics infers per-query result shapes", () => {
+    const m = defineDimensionalMetrics({
+      prefix: "ana:tx",
+      stores: {
+        amount: {
+          dimensions: {
+            coin: ["btc", "eth"] as const,
+            category: ["deposit", "withdrawal"] as const,
+          },
+          config: { duplicatePolicy: "SUM" as const },
+        },
+      },
+      queries: {
+        deposits_usd_total: {
+          store: "amount",
+          agg: "SUM" as const,
+          filter: { category: "deposit" as const },
+          breakdown: { by: "coin" as const },
+        },
+        withdrawals_total: {
+          store: "amount",
+          agg: "COUNT" as const,
+          filter: { category: "withdrawal" as const },
+        },
+      },
+    } as const);
+
+    expectTypeOf(m.stores.amount).toEqualTypeOf<
+      DimensionalTSStore<"coin" | "category">
+    >();
+
+    type Stats = Awaited<ReturnType<typeof m.getStats>>;
+    expectTypeOf<Stats["deposits_usd_total"]>().toEqualTypeOf<{
+      overall: number;
+      breakdown: Record<"btc" | "eth", number>;
+    }>();
+    expectTypeOf<Stats["withdrawals_total"]>().toBeNumber();
+
+    type Series = Awaited<ReturnType<typeof m.getSeries>>;
+    expectTypeOf<Series["deposits_usd_total"]>().toEqualTypeOf<{
+      overall: AnalyticBucket[];
+      breakdown: Record<"btc" | "eth", AnalyticBucket[]>;
+    }>();
+    expectTypeOf<Series["withdrawals_total"]>().toEqualTypeOf<AnalyticBucket[]>();
+  });
+
+  it("InferDimensionalStats/Series infer from definitions", () => {
+    type Stores = {
+      amount: {
+        dimensions: {
+          coin: readonly ["btc", "eth"];
+          category: readonly ["deposit", "withdrawal"];
+        };
+      };
+    };
+
+    type Queries = {
+      deposits_usd_total: {
+        store: "amount";
+        agg: "SUM";
+        filter: { category: "deposit" };
+        breakdown: { by: "coin" };
+      };
+      withdrawals_total: {
+        store: "amount";
+        agg: "COUNT";
+        filter: { category: "withdrawal" };
+      };
+    };
+
+    type Stats = InferDimensionalStats<Stores, Queries>;
+    type Series = InferDimensionalSeries<Stores, Queries>;
+
+    expectTypeOf<Stats["deposits_usd_total"]>().toEqualTypeOf<{
+      overall: number;
+      breakdown: Record<"btc" | "eth", number>;
+    }>();
+    expectTypeOf<Stats["withdrawals_total"]>().toBeNumber();
+    expectTypeOf<Series["deposits_usd_total"]>().toEqualTypeOf<{
+      overall: AnalyticBucket[];
+      breakdown: Record<"btc" | "eth", AnalyticBucket[]>;
+    }>();
+    expectTypeOf<Series["withdrawals_total"]>().toEqualTypeOf<AnalyticBucket[]>();
   });
 });

@@ -57,3 +57,22 @@ export function pickWeighted<T>(options: { value: T; weight: number }[]): T {
   }
   return options[0].value;
 }
+
+export function calcDailyCount(
+  baseDailyRate: number,
+  scale: number,
+  multiplier: number,
+  options: { min?: number; max?: number } = {}
+): number {
+  const min = options.min ?? 0;
+  const max = options.max ?? Number.MAX_SAFE_INTEGER;
+  return clamp(Math.round(baseDailyRate * scale * multiplier), min, max);
+}
+
+export function pickRandom<T>(values: readonly T[]): T {
+  if (values.length === 0) {
+    throw new Error("Cannot pick a random value from an empty collection");
+  }
+  const index = Math.floor(Math.random() * values.length);
+  return values[index] as T;
+}

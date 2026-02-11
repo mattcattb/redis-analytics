@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { defineMetrics } from "../../src/schema";
+import { defineDimensionalMetrics, defineMetrics } from "../../src/schema";
 import { setRedisAnalyticsClient } from "../../src/client";
 import type { RedisAnalyticsClient } from "../../src/client";
 
@@ -244,5 +244,129 @@ describe("defineMetrics", () => {
     const stats = await m.getStats("lifetime");
     expect(stats).toHaveProperty("events_total");
     expect(stats).toHaveProperty("unique_users");
+  });
+});
+
+describe("defineDimensionalMetrics", () => {
+  let client: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    client = createMockClient();
+    setRedisAnalyticsClient(client);
+  });
+
+  it("creates dimensional stores with prefixed keys", () => {
+    const m = defineDimensionalMetrics({
+      prefix: "ana:tx",
+      stores: {
+        amount: {
+          dimensions: {
+            coin: ["btc", "eth"] as const,
+            category: ["deposit", "withdrawal"] as const,
+          },
+          config: { duplicatePolicy: "SUM" as const },
+        },
+      },
+      queries: {
+        deposits_usd_total: {
+          store: "amount",
+          agg: "SUM" as const,
+          filter: { category: "deposit" as const },
+          breakdown: { by: "coin" as const },
+        },
+      },
+    } as const);
+
+    expect(m.stores.amount.baseKey).toBe("ana:tx:amount");
+  });
+
+  it("supports overall + breakdown query results", async () => {
+    (client.ts.mRangeWithLabelsGroupBy as any).mockImplementation(
+      async (...args: any[]) => {
+        const groupBy = args[3];
+        const options = args[4];
+
+        if (groupBy.label === "baseKey") {
+          const bucket = options.AGGREGATION.timeBucket;
+          return {
+            overall: {
+              labels: { baseKey: "ana:tx:amount" },
+              samples:
+                bucket === 3600000
+                  ? [
+                      { timestamp: 1000, value: 100 },
+                      { timestamp: 2000, value: 50 },
+                    ]
+                  : [{ timestamp: 1000, value: 150 }],
+            },
+          };
+        }
+
+        if (groupBy.label === "coin") {
+          const bucket = options.AGGREGATION.timeBucket;
+          return {
+            btc: {
+              labels: { coin: "btc" },
+              samples:
+                bucket === 3600000
+                  ? [
+                      { timestamp: 1000, value: 90 },
+                      { timestamp: 2000, value: 40 },
+                    ]
+                  : [{ timestamp: 1000, value: 130 }],
+            },
+            eth: {
+              labels: { coin: "eth" },
+              samples:
+                bucket === 3600000
+                  ? [
+                      { timestamp: 1000, value: 10 },
+                      { timestamp: 2000, value: 10 },
+                    ]
+                  : [{ timestamp: 1000, value: 20 }],
+            },
+          };
+        }
+
+        return {};
+      }
+    );
+
+    const m = defineDimensionalMetrics({
+      prefix: "ana:tx",
+      stores: {
+        amount: {
+          dimensions: {
+            coin: ["btc", "eth"] as const,
+            category: ["deposit", "withdrawal"] as const,
+          },
+          config: { duplicatePolicy: "SUM" as const },
+        },
+      },
+      queries: {
+        deposits_usd_total: {
+          store: "amount",
+          agg: "SUM" as const,
+          filter: { category: "deposit" as const },
+          breakdown: { by: "coin" as const },
+        },
+        deposits_total: {
+          store: "amount",
+          agg: "COUNT" as const,
+          filter: { category: "deposit" as const },
+        },
+      },
+    } as const);
+
+    const stats = await m.getStats("24h");
+    expect(stats.deposits_usd_total.overall).toBe(150);
+    expect(stats.deposits_usd_total.breakdown.btc).toBe(130);
+    expect(stats.deposits_usd_total.breakdown.eth).toBe(20);
+    expect(stats.deposits_total).toBe(150);
+
+    const series = await m.getSeries("24h", "h");
+    expect(series.deposits_usd_total.overall).toHaveLength(2);
+    expect(series.deposits_usd_total.breakdown.btc).toHaveLength(2);
+    expect(series.deposits_total).toHaveLength(2);
   });
 });
