@@ -33,6 +33,30 @@ const tippingMetrics = defineMetrics({
 });
 ```
 
+## Fluent alternative with `metricsSchema`
+
+```ts
+import { metricsSchema } from "redis-analytics/schema";
+
+const tippingMetrics = metricsSchema("analytics:tipping")
+  .timeseries("tips", (m) =>
+    m
+      .duplicatePolicy("SUM")
+      .sum("tips_usd_total")
+      .count("tips_total")
+      .avg("tips_usd_avg")
+      .compact("SUM", "h")
+  )
+  .timeseries("fees", (m) =>
+    m
+      .withConfig({ duplicatePolicy: "SUM" })
+      .sum("fees_usd_total")
+      .avg("fees_usd_avg")
+  )
+  .hll("unique_tippers")
+  .build();
+```
+
 ## What you get
 
 ### `stores`
@@ -112,6 +136,7 @@ events: {
     events_sum: "SUM",
     events_avg: "AVG",
   },
+  compactions: [{ agg: "SUM", bucket: "h" }],
 }
 ```
 

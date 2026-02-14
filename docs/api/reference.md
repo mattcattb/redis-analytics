@@ -10,6 +10,7 @@ Core exports:
 - `TimeSeriesService`, `HLLService`, `BloomService`
 - Stores: `TimeseriesStore`, `DimensionalTimeseriesStore`, `HllStore`, `BloomCounterStore`
 - Query builders: `ts`, `tsQuery`, `dimensionalQuery`, `groupedQuery`
+- Schema helpers: `defineMetrics`, `defineDimensionalMetrics`, `metricsSchema`
 
 Main types:
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { defineDimensionalMetrics, defineMetrics } from "../../src/schema";
+import { defineDimensionalMetrics, defineMetrics, metricsSchema } from "../../src/schema";
 import { setRedisAnalyticsClient } from "../../src/client";
 import type { RedisAnalyticsClient } from "../../src/client";
 
@@ -76,6 +76,29 @@ describe("defineMetrics", () => {
 
     // TimeseriesStore.init calls ensureKey
     expect(client.ts.create).toHaveBeenCalled();
+  });
+
+  it("initializes configured timeseries compactions", async () => {
+    const m = defineMetrics({
+      prefix: "test:compact",
+      metrics: {
+        events: {
+          type: "timeseries",
+          aggregations: { events_total: "COUNT" },
+          compactions: [{ agg: "SUM", bucket: "h" }],
+        },
+      },
+    });
+
+    await m.init();
+
+    expect(client.ts.createRule).toHaveBeenCalledWith(
+      "test:compact:events",
+      "test:compact:events:SUM",
+      "SUM",
+      60 * 60 * 1000,
+      0
+    );
   });
 
   it("getStats with timeframe string", async () => {
@@ -244,6 +267,30 @@ describe("defineMetrics", () => {
     const stats = await m.getStats("lifetime");
     expect(stats).toHaveProperty("events_total");
     expect(stats).toHaveProperty("unique_users");
+  });
+
+  it("supports class-based fluent metricsSchema builder", async () => {
+    (client.ts.range as any).mockResolvedValue([{ timestamp: 1000, value: 12 }]);
+    (client.pfCount as any).mockResolvedValue(5);
+
+    const m = metricsSchema("test:fluent")
+      .timeseries("tips", (ts) =>
+        ts
+          .duplicatePolicy("SUM")
+          .sum("tips_usd_total")
+          .count("tips_total")
+          .compact("SUM", "h")
+      )
+      .hll("unique_tippers")
+      .build();
+
+    await m.init();
+    const stats = await m.getStats("24h");
+
+    expect(client.ts.createRule).toHaveBeenCalled();
+    expect(stats.tips_usd_total).toBe(12);
+    expect(stats.tips_total).toBe(12);
+    expect(stats.unique_tippers).toBe(5);
   });
 });
 

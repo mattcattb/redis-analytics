@@ -2,6 +2,7 @@ import { describe, it, expectTypeOf } from "vitest";
 import {
   defineDimensionalMetrics,
   defineMetrics,
+  metricsSchema,
   type InferDimensionalSeries,
   type InferDimensionalStats,
   type InferSeries,
@@ -79,6 +80,28 @@ describe("defineMetrics type inference", () => {
     expectTypeOf(m.stores.unique_tippers).toEqualTypeOf<HllStore>();
     expectTypeOf(m.stores.unique_tippees).toEqualTypeOf<HllStore>();
     expectTypeOf(m.stores.new_users).toEqualTypeOf<BloomCounterStore>();
+  });
+
+  it("metricsSchema fluent builder infers stat keys", () => {
+    const m = metricsSchema("test")
+      .timeseries("tips", (ts) => ts.sum("tips_usd_total").count("tips_total"))
+      .hll("unique_tippers")
+      .build();
+
+    type Stats = Awaited<ReturnType<typeof m.getStats>>;
+    type Series = Awaited<ReturnType<typeof m.getSeries>>;
+
+    expectTypeOf<Stats>().toEqualTypeOf<{
+      tips_usd_total: number;
+      tips_total: number;
+      unique_tippers: number;
+    }>();
+
+    expectTypeOf<Series>().toEqualTypeOf<{
+      tips_usd_total: AnalyticBucket[];
+      tips_total: AnalyticBucket[];
+      unique_tippers: AnalyticBucket[];
+    }>();
   });
 
   it("timeseries-only definition infers correctly", () => {

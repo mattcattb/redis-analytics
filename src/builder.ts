@@ -475,6 +475,10 @@ type ScalarMetricDef =
       type: "timeseries";
       config?: TSConfig;
       aggregations: Record<string, TSAggregation>;
+      compactions?: readonly {
+        agg: TSAggregation;
+        bucket?: Bucket;
+      }[];
     }
   | { type: "hll" }
   | {
@@ -532,6 +536,10 @@ export type AnalyticsMetricsBuilder<TMetrics extends ScalarMetricsDef> = {
     options: {
       aggregations: TAgg;
       config?: TSConfig;
+      compactions?: readonly {
+        agg: TSAggregation;
+        bucket?: Bucket;
+      }[];
     }
   ): AnalyticsMetricsBuilder<
     TMetrics &
@@ -541,6 +549,10 @@ export type AnalyticsMetricsBuilder<TMetrics extends ScalarMetricsDef> = {
           type: "timeseries";
           config?: TSConfig;
           aggregations: TAgg;
+          compactions?: readonly {
+            agg: TSAggregation;
+            bucket?: Bucket;
+          }[];
         }
       >
   >;
@@ -579,6 +591,7 @@ function createAnalyticsMetricsBuilder<TMetrics extends ScalarMetricsDef>(
           type: "timeseries",
           config: options.config,
           aggregations: options.aggregations,
+          compactions: options.compactions,
         },
       } as TMetrics &
         Record<
@@ -587,6 +600,10 @@ function createAnalyticsMetricsBuilder<TMetrics extends ScalarMetricsDef>(
             type: "timeseries";
             config?: TSConfig;
             aggregations: typeof options.aggregations;
+            compactions?: readonly {
+              agg: TSAggregation;
+              bucket?: Bucket;
+            }[];
           }
         >;
 

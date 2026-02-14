@@ -64,6 +64,35 @@ await tippingMetrics.stores.tips.record([
 ]);
 ```
 
+## Fluent setup — `metricsSchema`
+
+If you prefer incremental configuration (instead of one large object), use the class-based schema builder:
+
+```ts
+import { metricsSchema } from "redis-analytics/schema";
+
+const tippingMetrics = metricsSchema("analytics:tipping")
+  .timeseries("tips", (m) =>
+    m
+      .duplicatePolicy("SUM")
+      .sum("tips_usd_total")
+      .count("tips_total")
+      .avg("tips_usd_avg")
+      .compact("SUM", "h")
+  )
+  .timeseries("fees", (m) =>
+    m
+      .withConfig({ duplicatePolicy: "SUM" })
+      .sum("fees_usd_total")
+      .avg("fees_usd_avg")
+  )
+  .hll("unique_tippers")
+  .build();
+
+await tippingMetrics.init();
+const stats = await tippingMetrics.getStats("24h");
+```
+
 **Supported metric types:**
 
 | Type | Description | Stat key |

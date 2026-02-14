@@ -19,6 +19,7 @@ type TimeseriesMetricDef = {
   type: "timeseries";
   config?: TSConfig;
   aggregations: Record<string, TSAggregation>;
+  compactions?: readonly TimeseriesCompactionDef[];
 };
 
 type HllMetricDef = {
@@ -33,6 +34,11 @@ type BloomCounterMetricDef = {
 type MetricDef = TimeseriesMetricDef | HllMetricDef | BloomCounterMetricDef;
 
 type MetricsDef = Record<string, MetricDef>;
+
+export type TimeseriesCompactionDef = {
+  agg: TSAggregation;
+  bucket?: Bucket;
+};
 
 // ── Type inference ──
 
@@ -113,6 +119,9 @@ export function defineMetrics<const TDef extends MetricsDef>(config: {
     switch (def.type) {
       case "timeseries": {
         const store = new TimeseriesStore(key, def.config ?? {});
+        for (const compaction of def.compactions ?? []) {
+          store.compact(compaction.agg, compaction.bucket ?? "h");
+        }
         storesRecord[name] = store;
         internals.push({ kind: "timeseries", name, store, aggregations: def.aggregations });
         break;
@@ -210,6 +219,224 @@ export function defineMetrics<const TDef extends MetricsDef>(config: {
     getStats,
     getSeries,
   };
+}
+
+type BuiltTimeseriesMetricDef<TAgg extends Record<string, TSAggregation>> = {
+  type: "timeseries";
+  config?: TSConfig;
+  aggregations: TAgg;
+  compactions?: readonly TimeseriesCompactionDef[];
+};
+
+type TimeseriesMetricInput<TAgg extends Record<string, TSAggregation>> =
+  | {
+      config?: TSConfig;
+      aggregations: TAgg;
+      compactions?: readonly TimeseriesCompactionDef[];
+    }
+  | ((
+      metric: TimeseriesMetricSchemaBuilder<{}>
+    ) => TimeseriesMetricSchemaBuilder<TAgg>);
+
+export class TimeseriesMetricSchemaBuilder<TAgg extends Record<string, TSAggregation> = {}> {
+  private config: TSConfig | undefined;
+  private readonly aggregations: Record<string, TSAggregation>;
+  private readonly compactions: TimeseriesCompactionDef[];
+
+  constructor(initial?: {
+    config?: TSConfig;
+    aggregations?: Record<string, TSAggregation>;
+    compactions?: readonly TimeseriesCompactionDef[];
+  }) {
+    this.config = initial?.config;
+    this.aggregations = { ...(initial?.aggregations ?? {}) };
+    this.compactions = [...(initial?.compactions ?? [])];
+  }
+
+  withConfig(config: TSConfig): this {
+    this.config = config;
+    return this;
+  }
+
+  duplicatePolicy(policy: NonNullable<TSConfig["duplicatePolicy"]>): this {
+    this.config = {
+      ...(this.config ?? {}),
+      duplicatePolicy: policy,
+    };
+    return this;
+  }
+
+  aggregation<const TName extends string, const TAggType extends TSAggregation>(
+    name: TName,
+    agg: TAggType
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, TAggType>> {
+    this.aggregations[name] = agg;
+    return this as unknown as TimeseriesMetricSchemaBuilder<TAgg & Record<TName, TAggType>>;
+  }
+
+  sum<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "SUM">> {
+    return this.aggregation(name, "SUM");
+  }
+
+  count<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "COUNT">> {
+    return this.aggregation(name, "COUNT");
+  }
+
+  avg<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "AVG">> {
+    return this.aggregation(name, "AVG");
+  }
+
+  min<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "MIN">> {
+    return this.aggregation(name, "MIN");
+  }
+
+  max<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "MAX">> {
+    return this.aggregation(name, "MAX");
+  }
+
+  last<const TName extends string>(
+    name: TName
+  ): TimeseriesMetricSchemaBuilder<TAgg & Record<TName, "LAST">> {
+    return this.aggregation(name, "LAST");
+  }
+
+  compact(agg: TSAggregation, bucket: Bucket = "h"): this {
+    this.compactions.push({ agg, bucket });
+    return this;
+  }
+
+  toDefinition(): BuiltTimeseriesMetricDef<TAgg> {
+    const aggregations = this.aggregations as TAgg;
+    if (Object.keys(aggregations).length === 0) {
+      throw new Error("Timeseries metric requires at least one aggregation");
+    }
+
+    return {
+      type: "timeseries",
+      config: this.config,
+      aggregations,
+      compactions: this.compactions.length > 0 ? [...this.compactions] : undefined,
+    };
+  }
+}
+
+export class MetricsSchemaBuilder<TDef extends MetricsDef = {}> {
+  constructor(
+    private readonly prefix: string,
+    private readonly metrics: TDef = {} as TDef
+  ) {}
+
+  timeseries<
+    const TName extends string,
+    const TAgg extends Record<string, TSAggregation>,
+  >(
+    name: TName,
+    definition: TimeseriesMetricInput<TAgg>
+  ): MetricsSchemaBuilder<
+    TDef &
+      Record<
+        TName,
+        {
+          type: "timeseries";
+          config?: TSConfig;
+          aggregations: TAgg;
+          compactions?: readonly TimeseriesCompactionDef[];
+        }
+      >
+  > {
+    const metric =
+      typeof definition === "function"
+        ? definition(new TimeseriesMetricSchemaBuilder<{}>()).toDefinition()
+        : {
+            type: "timeseries",
+            config: definition.config,
+            aggregations: definition.aggregations,
+            compactions: definition.compactions,
+          };
+
+    const next = {
+      ...this.metrics,
+      [name]: metric,
+    } as TDef &
+      Record<
+        TName,
+        {
+          type: "timeseries";
+          config?: TSConfig;
+          aggregations: TAgg;
+          compactions?: readonly TimeseriesCompactionDef[];
+        }
+      >;
+
+    return new MetricsSchemaBuilder(this.prefix, next);
+  }
+
+  hll<const TName extends string>(
+    name: TName
+  ): MetricsSchemaBuilder<TDef & Record<TName, { type: "hll" }>> {
+    const next = {
+      ...this.metrics,
+      [name]: { type: "hll" as const },
+    } as TDef & Record<TName, { type: "hll" }>;
+    return new MetricsSchemaBuilder(this.prefix, next);
+  }
+
+  bloomCounter<const TName extends string>(
+    name: TName,
+    options?: {
+      bloom?: BloomConfig;
+    }
+  ): MetricsSchemaBuilder<
+    TDef &
+      Record<
+        TName,
+        {
+          type: "bloom-counter";
+          bloom?: BloomConfig;
+        }
+      >
+  > {
+    const next = {
+      ...this.metrics,
+      [name]: {
+        type: "bloom-counter" as const,
+        bloom: options?.bloom,
+      },
+    } as TDef &
+      Record<
+        TName,
+        {
+          type: "bloom-counter";
+          bloom?: BloomConfig;
+        }
+      >;
+    return new MetricsSchemaBuilder(this.prefix, next);
+  }
+
+  definition(): { prefix: string; metrics: TDef } {
+    return { prefix: this.prefix, metrics: this.metrics };
+  }
+
+  build(): DefinedMetrics<TDef> {
+    return defineMetrics({
+      prefix: this.prefix,
+      metrics: this.metrics,
+    });
+  }
+}
+
+export function metricsSchema(prefix: string): MetricsSchemaBuilder<{}> {
+  return new MetricsSchemaBuilder(prefix);
 }
 
 // ── Dimensional schema API ──

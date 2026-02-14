@@ -264,6 +264,7 @@ describe("analyticsDomain builder", () => {
     const roll = analyticsMetrics("ana:roll")
       .timeseriesMetric("wagered", {
         config: { duplicatePolicy: "SUM" },
+        compactions: [{ agg: "SUM", bucket: "h" }],
         aggregations: {
           wagers_usd_total: "SUM",
           rolls_total: "COUNT",
@@ -273,6 +274,7 @@ describe("analyticsDomain builder", () => {
 
     await roll.init();
     expect(client.ts.create).toHaveBeenCalled();
+    expect(client.ts.createRule).toHaveBeenCalled();
 
     const stats = await roll.stats("24h");
     expect(stats.wagers_usd_total).toBe(120);
